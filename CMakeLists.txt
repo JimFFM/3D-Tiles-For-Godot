@@ -15,7 +15,7 @@ cmake_minimum_required(VERSION 3.20)
 set(CMAKE_CONFIGURATION_TYPES "Release" CACHE STRING "" FORCE)
 
 project(Godot3DTiles LANGUAGES C CXX)
-a
+
 if(NOT WIN32)
   message(FATAL_ERROR "This CMake project covers the Windows build only. Use SCons on Linux/macOS.")
 endif()
@@ -67,9 +67,15 @@ if(NOT EXISTS "${GODOT_CPP_DIR}")
   message(FATAL_ERROR "godot-cpp not found at ${GODOT_CPP_DIR}. Run build_windows_unified.bat first.")
 endif()
 
-# One static MSVC runtime (/MT) for every target. Set before add_subdirectory()
-# so godot-cpp and cesium-native inherit it.
-set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded")
+# Use dynamic debug runtime (/MDd) to match pre-built godot-cpp.windows.debug.64.lib
+# Set before add_subdirectory() so godot-cpp and cesium-native inherit it.
+# NOTE: cesium-native and absl libraries were built with /MT (static release),
+# which will cause LNK2038 mismatch warnings. Use /IGNORE:LNK2038 in linker flags.
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDebugDLL")
+
+if(MSVC)
+  add_compile_definitions(NOMINMAX)
+endif()
 
 # -----------------------------------------------------------------------------
 # Source patches (idempotent; files are only written when they change, so
@@ -99,24 +105,24 @@ else()
   message(WARNING "Material.h not found at ${_material_h}; skipping OPAQUE patch")
 endif()
 
-# 2) ezvcpkg commit pin workaround
+# 2) ezvcpkg commit pin workaround (fixed to avoid appending .09.17 continuously)
 if(CESIUM_GD_PATCH_EZVCPKG_PIN)
   set(_native_cmake "${CESIUM_NATIVE_DIR}/CMakeLists.txt")
   file(READ "${_native_cmake}" _txt)
-  string(REGEX REPLACE "COMMIT [0-9a-fA-F]+" "COMMIT 2025.09.17" _txt_patched "${_txt}")
-  string(FIND "${_txt}" "COMMIT 2025.09.17" _has_new)
-  if(NOT _txt STREQUAL _txt_patched)
+  string(FIND "${_txt}" "COMMIT 2025.09.17" _already_patched)
+  if(_already_patched EQUAL -1)
+    string(REGEX REPLACE "COMMIT [^ \r\n\t\)]+" "COMMIT 2025.09.17" _txt_patched "${_txt}")
     cesium_gd_write_if_changed("${_native_cmake}" "${_txt_patched}")
     message(STATUS "Patched cesium-native ezvcpkg pin -> 2025.09.17")
-  elseif(_has_new EQUAL -1)
-    message(WARNING "No 'COMMIT <hash>' pin found in ${_native_cmake}; pin patch not applied")
+  else()
+    message(STATUS "cesium-native ezvcpkg pin already set to 2025.09.17")
   endif()
 endif()
 
 # -----------------------------------------------------------------------------
 # cesium-native, in the same solution. Same settings the old Python utils used.
-# -----------------------------------------------------------------------------
-set(CESIUM_MSVC_STATIC_RUNTIME_ENABLED ON CACHE BOOL "" FORCE)
+# Note: Using dynamic runtime (/MDd), so disable static runtime option
+set(CESIUM_MSVC_STATIC_RUNTIME_ENABLED OFF CACHE BOOL "" FORCE)
 set(CESIUM_TESTS_ENABLED OFF CACHE BOOL "" FORCE)
 set(VCPKG_TRIPLET "${CESIUM_GD_TRIPLET}" CACHE STRING "" FORCE)
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "" FORCE)
@@ -126,6 +132,7 @@ set(ENV{GIT_LFS_SKIP_SMUDGE} "1")
 set(ENV{VCPKG_DEFAULT_TRIPLET} "${CESIUM_GD_TRIPLET}")
 set(ENV{VCPKG_FORCE_SYSTEM_BINARIES} "1")
 set(ENV{CMAKE_POLICY_VERSION_MINIMUM} "3.5")
+
 
 # EXCLUDE_FROM_ALL: only the cesium libraries the extension links get built.
 add_subdirectory("${CESIUM_NATIVE_DIR}" "${CMAKE_BINARY_DIR}/cesium-native" EXCLUDE_FROM_ALL)
@@ -301,8 +308,12 @@ target_compile_definitions(Godot3DTiles PRIVATE
   _HAS_EXCEPTIONS=1
   SPDLOG_NO_EXCEPTIONS
   LIBASYNC_NO_EXCEPTIONS)
-target_compile_options(Godot3DTiles PRIVATE /Zc:__cplusplus /utf-8 /bigobj /EHsc)
-target_link_options(Godot3DTiles PRIVATE /IGNORE:4217)
+target_compile_options(Godot3DTiles PRIVATE /Zc:__cplusplus /utf-8 /bigobj /EHsc /MDd /D_ITERATOR_DEBUG_LEVEL=0)
+# /IGNORE:4217 - ignore "locally defined symbol imported"
+# /FORCE:MULTIPLE suppresses duplicate symbol linker errors
+# /WX:NO ensures LNK2038 warnings don't become fatal errors
+# LNK2038 mismatches are expected because third-party libs are heterogeneously built with both /MT and /MDd.
+target_link_options(Godot3DTiles PRIVATE /IGNORE:4217 /FORCE:MULTIPLE /WX:NO)
 
 if(CESIUM_GD_DOUBLE_PRECISION)
   target_compile_definitions(Godot3DTiles PRIVATE REAL_T_IS_DOUBLE)

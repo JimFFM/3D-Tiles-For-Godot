@@ -150,7 +150,8 @@ public:
 		glm::dmat4 scale = glm::scale(identity, glm::dvec3(1.0));
 		glm::dmat4 trs = translation * rotation * scale;
 
-		return trs * glm::dvec4(vec, 1.0);
+		glm::dvec4 transformed = trs * glm::dvec4(vec, 1.0);
+		return glm::dvec3(transformed);
 	}
 	
 	static inline glm::dmat4 array_to_dmat4(const std::vector<double>& vec) {
@@ -158,7 +159,7 @@ public:
 			ERR_PRINT("Array must have exactly 16 elements to convert it to a matrix, # of elements found : " + itos(vec.size()));
 		}
 
-		glm::mat4 mat;
+		glm::dmat4 mat;
 		for (int32_t i = 0; i < 4; ++i) {
 			for (int32_t j = 0; j < 4; ++j) {
 				mat[i][j] = vec[i * 4 + j];

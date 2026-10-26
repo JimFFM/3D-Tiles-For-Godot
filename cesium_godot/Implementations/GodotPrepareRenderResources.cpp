@@ -99,7 +99,7 @@ CesiumAsync::Future<Cesium3DTilesSelection::TileLoadResultAndRenderResources> Go
 		constexpr int32_t osmBuildingsId = 96188;
 
 		constexpr int32_t translationColumnIndex = 3;
-		glmPos = transformationMat[translationColumnIndex];
+		glmPos = glm::dvec3(transformationMat[translationColumnIndex]);
 		glmRot = glm::quat_cast(transformationMat);
 
 		Vector3 translation;
@@ -163,7 +163,7 @@ void* GodotPrepareRenderResources::prepareInMainThread(Tile& tile, void* pLoadTh
 	tileTransform = CesiumGDModelLoader::apply_rtc_center(model, tileTransform);
 	tileTransform = CesiumGDModelLoader::apply_gltf_up_axis_transform(model, tileTransform);
 	// Then apply the z up
-	glm::dvec3 position = glm::dvec3(CesiumMathUtils::ecef_to_engine(tileTransform[3]));
+	glm::dvec3 position = CesiumMathUtils::ecef_to_engine(glm::dvec3(tileTransform[3]));
 	instance->set_original_position(instance->get_original_position() + position);
 	return pLoadThreadResult;
 }

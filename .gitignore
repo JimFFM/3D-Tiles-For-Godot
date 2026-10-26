@@ -45,3 +45,4 @@ godot3dtiles/**/*.import
 *.vcxproj
 *.vcxproj.filters
 *.dblite
+"build/" 

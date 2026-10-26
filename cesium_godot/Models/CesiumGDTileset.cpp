@@ -107,11 +107,11 @@ inline void extract_properties_from_bounding_box(const CesiumGeometry::OrientedB
 
 	Vector3 size = CesiumMathUtils::from_glm_vec3(box.getLengths());
 	Vector3 center = CesiumMathUtils::from_glm_vec3(box.getCenter());
-	const glm::mat3& halfAxes = box.getHalfAxes();
+	const glm::dmat3& halfAxes = box.getHalfAxes();
 
-	const glm::dvec3& basisX = halfAxes[0];
-	const glm::dvec3& basisY = halfAxes[1];
-	const glm::dvec3& basisZ = halfAxes[2];
+	const glm::dvec3 basisX = halfAxes[0];
+	const glm::dvec3 basisY = halfAxes[1];
+	const glm::dvec3 basisZ = halfAxes[2];
 	Basis basisLocal = Basis(
 		CesiumMathUtils::from_glm_vec3(basisX),
 		CesiumMathUtils::from_glm_vec3(basisY),
@@ -390,9 +390,10 @@ void Cesium3DTileset::update_tileset(const Transform3D& cameraTransform)
 		camPos,
 		cameraDirection,
 		CesiumMathUtils::to_glm_dvec3(cameraUp),
-		CesiumMathUtils::to_glm_vec2(viewportSize),
+		glm::dvec2(viewportSize.x, viewportSize.y),
 		horizontalFOV,
-		verticalFOV
+		verticalFOV,
+		CesiumGeospatial::Ellipsoid::WGS84
 	);
 
 	const Cesium3DTilesSelection::ViewUpdateResult& updateResult = this->m_activeTileset->updateViewGroup(this->m_activeTileset->getDefaultViewGroup(), { currentViewState });
